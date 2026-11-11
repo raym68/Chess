@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Верблюд">
+<path fill="currentColor" d="M9 54h46v5H9zM14 50V35l7-2 5-12 7 11 7-9 6 10 5-2 4 8-5 3v8h-7V40l-5-2-6 8-6-8-6 2v10h-6z"/>
+<path fill="currentColor" d="M46 32V17l5-7 5 1-3 8 3 10-5 4z"/>
+<circle cx="51" cy="18" r="1.6" fill="#fff"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Грифон">
+<path fill="currentColor" d="M12 54h42v5H12zM18 50c2-9 4-17 12-22l-5-7 7 2 5-8c3 2 5 5 5 9l7 4-10 4-4 5 3 13H18z"/>
+<path fill="currentColor" d="M35 34c-1-11 3-21 13-27-2 10-2 18 5 24-5-1-10-1-18 3z"/>
+<path fill="#fff" d="M46 16c-3 5-5 10-5 15l-3 1c0-7 2-13 8-16z"/>
+<circle cx="36" cy="25" r="1.8" fill="#fff"/>
+</svg>

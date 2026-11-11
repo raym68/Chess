@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Прыгающий слон">
+<path fill="currentColor" d="M11 54h42v5H11zM18 50V25l-8-6 2-8 13 6c5-4 12-4 17 0l11-6 2 8-8 6v13c0 8-4 13-10 13h-4V39h-4v11H18z"/>
+<path fill="currentColor" d="M39 34h9v14c0 6-4 8-9 7v-5c3 0 4-2 4-4V34z"/>
+<circle cx="25" cy="29" r="2" fill="#fff"/><circle cx="42" cy="29" r="2" fill="#fff"/>
+<path d="M15 8l-3 5m3-5 3 5M49 8l-3 5m3-5 3 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+</svg>
