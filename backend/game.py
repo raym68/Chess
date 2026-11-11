@@ -1,7 +1,7 @@
 """Правила шахмат. Координаты: (строка, столбец), от 0 до 7."""
 from copy import deepcopy
 
-from .models import BACK, OPTIONS, PROMOTION, SETUP_OPTIONS, Piece, new_board, board_to_dict
+from .models import BACK, OPTIONS, PROMOTION, SETUP_OPTIONS, SETUP_SLOTS, Piece, new_board, board_to_dict
 
 
 def enemy(color):
@@ -13,10 +13,12 @@ def inside(r, c):
 
 
 class Game:
-    def __init__(self, back_pair=('B', 'B')):
-        if len(back_pair) != 2 or any(kind not in OPTIONS for kind in back_pair):
-            raise ValueError('Выберите две фигуры из B, G, C, E')
-        self.back_pair = tuple(back_pair)
+    def __init__(self, back_rank=BACK):
+        if (not isinstance(back_rank, (list, tuple)) or len(back_rank) != 8
+                or back_rank[3] != 'Q' or back_rank[4] != 'K'
+                or any(back_rank[index] not in OPTIONS for index in SETUP_SLOTS)):
+            raise ValueError('Выберите фигуры для линий a, b, c, f, g, h; ферзь и король остаются на месте')
+        self.back_rank = tuple(back_rank)
         self.board = new_board()
         self.turn = 'white'
         self.en_passant = None
@@ -25,9 +27,7 @@ class Game:
         self.history = []
         self.pending_notation = None
         for color, row, pawn_row in [('black', 0, 1), ('white', 7, 6)]:
-            lineup = list(BACK)
-            lineup[2], lineup[5] = back_pair
-            for c, kind in enumerate(lineup):
+            for c, kind in enumerate(self.back_rank):
                 self.board[row][c] = Piece(kind, color)
                 self.board[pawn_row][c] = Piece('P', color)
 
@@ -38,7 +38,8 @@ class Game:
         return {'board': board_to_dict(self.board), 'turn': self.turn, 'status': self.status,
                 'checked_king': checked_king,
                 'promotion': self.pending_promotion, 'promotion_options': sorted(PROMOTION),
-                'setup_options': SETUP_OPTIONS, 'back_pair': list(self.back_pair),
+                'setup_options': SETUP_OPTIONS, 'setup_slots': SETUP_SLOTS,
+                'back_rank': list(self.back_rank), 'back_pair': [self.back_rank[2], self.back_rank[5]],
                 'history': self.history}
 
     def attacks(self, r, c):

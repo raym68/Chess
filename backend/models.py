@@ -6,9 +6,12 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 BACK = ('R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R')
-OPTIONS = frozenset(('B', 'G', 'C', 'E'))
+SETUP_SLOTS = (0, 1, 2, 5, 6, 7)
+OPTIONS = frozenset(('R', 'N', 'B', 'G', 'C', 'E'))
 PROMOTION = frozenset(('Q', 'R', 'B', 'N', 'G', 'C', 'E'))
 SETUP_OPTIONS = (
+    {'kind': 'R', 'name': 'Ладья'},
+    {'kind': 'N', 'name': 'Конь'},
     {'kind': 'B', 'name': 'Слон'},
     {'kind': 'G', 'name': 'Грифон'},
     {'kind': 'C', 'name': 'Верблюд'},

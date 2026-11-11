@@ -47,10 +47,16 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             data = self.read_json()
             if self.path == '/api/new':
-                pair = data['back_pair']
-                if not isinstance(pair, list):
-                    raise ValueError('Нужны две фигуры для симметричной расстановки')
-                game = Game(pair)
+                if 'back_rank' in data:
+                    game = Game(data['back_rank'])
+                elif 'back_pair' in data:  # совместимость со старой страницей в кэше браузера
+                    pair = data['back_pair']
+                    if not isinstance(pair, list) or len(pair) != 2:
+                        raise ValueError('Нужны две фигуры для линий c и f')
+                    rank = ['R', 'N', pair[0], 'Q', 'K', pair[1], 'N', 'R']
+                    game = Game(rank)
+                else:
+                    raise ValueError('Нужна расстановка стартового ряда')
             elif self.path == '/api/move':
                 start, end = data['start'], data['end']
                 if not all(isinstance(pos, list) and len(pos) == 2 for pos in (start, end)):
