@@ -1,4 +1,6 @@
 """Настольный интерфейс для игры двух человек за одной доской."""
+from math import ceil
+from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
 
@@ -9,6 +11,8 @@ FILES = 'abcdefgh'
 NAMES = {item['kind']: item['name'] for item in SETUP_OPTIONS}
 NAMES['Q'] = 'Ферзь'
 SYMBOLS = dict(zip('KQRBNP', '♚♛♜♝♞♟'))
+PIECE_FILES = {'G': 'griffin', 'C': 'camel', 'E': 'elephant'}
+PIECE_DIR = Path(__file__).resolve().parent / 'assets' / 'pieces'
 THEMES = {
     'Дерево': ('#ecd9b6', '#b78963'),
     'Синий': ('#dfeaf2', '#819eb5'),
@@ -27,6 +31,11 @@ class ChessWindow:
         self.theme = tk.StringVar(value='Дерево')
         self.status = tk.StringVar()
         self.geometry = None
+        self.icons = {
+            (kind, color): tk.PhotoImage(master=root, file=str(PIECE_DIR / f'{name}-{color}.gif'))
+            for kind, name in PIECE_FILES.items() for color in ('white', 'black')
+        }
+        self.scaled_icons = {}
 
         frame = ttk.Frame(root, padding=12)
         frame.pack(fill='both', expand=True)
@@ -58,10 +67,23 @@ class ChessWindow:
         self.history.configure(yscrollcommand=scroll.set)
         scroll.pack(side='right', fill='y')
         self.history.pack(fill='both', expand=True)
-        ttk.Label(side, text='G   Грифон — слон или конь\nC   Верблюд — прыжок 3 × 1\n'
-                            'E   Прыгающий слон — на две\n     клетки в любом направлении',
-                  justify='left').pack(anchor='w', pady=(12, 0))
+        legend = ttk.Frame(side)
+        legend.pack(anchor='w', pady=(12, 0))
+        for row, (kind, rule) in enumerate((
+                ('G', 'ходит как слон или конь'),
+                ('C', 'прыгает на 3 × 1'),
+                ('E', 'прыгает на две клетки\nв любом направлении'))):
+            ttk.Label(legend, image=self.icon(kind, 'black', 32)).grid(row=row, column=0)
+            ttk.Label(legend, text=f'{NAMES[kind]}\n{rule}').grid(row=row, column=1, sticky='w')
         self.refresh()
+
+    def icon(self, kind, color, size):
+        original = self.icons[kind, color]
+        factor = max(1, ceil(original.width() / size))
+        key = kind, color, factor
+        if key not in self.scaled_icons:
+            self.scaled_icons[key] = original.subsample(factor)
+        return self.scaled_icons[key]
 
     def draw(self, event=None):
         board = self.board
@@ -91,8 +113,10 @@ class ChessWindow:
                     fill = '#e0bd54'
                 board.create_rectangle(x, y, x + cell, y + cell, fill=fill, outline='')
                 cx, cy = x + cell / 2, y + cell / 2
-                if piece:
-                    symbol = SYMBOLS.get(piece.kind, piece.kind)
+                if piece and piece.kind in PIECE_FILES:
+                    board.create_image(cx, cy, image=self.icon(piece.kind, piece.color, cell))
+                elif piece:
+                    symbol = SYMBOLS[piece.kind]
                     font = ('Arial', -max(8, int(cell * 0.72)))
                     ink = '#242829' if piece.color == 'black' else '#fffaf0'
                     if piece.color == 'white':
@@ -182,7 +206,10 @@ class ChessWindow:
         frame.pack()
         ttk.Label(frame, text='В какую фигуру превратить пешку?').pack(pady=(0, 6))
         for kind in sorted(PROMOTION, key=lambda k: (k != 'Q', NAMES[k])):
-            ttk.Button(frame, text=NAMES[kind], command=lambda k=kind: choose(k)).pack(fill='x')
+            button = ttk.Button(frame, text=NAMES[kind], command=lambda k=kind: choose(k))
+            if kind in PIECE_FILES:
+                button.configure(image=self.icon(kind, self.game.turn, 32), compound='left')
+            button.pack(fill='x')
 
 
 def main():
