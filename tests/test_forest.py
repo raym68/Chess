@@ -17,10 +17,25 @@ class ForestRules(unittest.TestCase):
     def test_phoenix_distance_and_obstacles(self):
         g = position(('d4', 'F', 'white'), ('d5', 'S', 'black'))
         self.assertNotIn((2, 3), g.attacks(4, 3))
-        self.assertEqual(len(g.attacks(4, 3)), 7)
+        self.assertEqual(len(g.attacks(4, 3)), 15)
         g.board[4][3].kind = 'A'
         self.assertIn((2, 3), g.attacks(4, 3))
-        self.assertEqual(len(g.attacks(4, 3)), 8)
+        self.assertEqual(len(g.attacks(4, 3)), 16)
+
+    def test_phoenix_moves_captures_and_checks_at_both_distances(self):
+        for kind in ('F', 'A'):
+            for distance in (1, 2):
+                with self.subTest(kind=kind, distance=distance):
+                    g = position(('h1', 'T', 'white'), ('d4', kind, 'white'),
+                                 ('a8', 'T', 'black'))
+                    end = (4-distance, 3)
+                    self.assertIn(end, g.legal(4, 3))
+                    g.board[end[0]][end[1]] = Piece('S', 'black')
+                    g.move((4, 3), end)
+                    self.assertEqual(g.board[end[0]][3].kind, kind)
+                    g.board[end[0]][3+distance] = g.board[0][0]
+                    g.board[0][0] = None
+                    self.assertTrue(g.in_check('black'))
 
     def test_rebirth_and_second_capture(self):
         g = position(('h1', 'T', 'white'), ('h7', 'T', 'black'),

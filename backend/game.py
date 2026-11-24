@@ -73,8 +73,15 @@ class Game:
         elif k in ('N', 'G'):
             jumps = [(a*sa, b*sb) for a, b in ((1, 2), (2, 1)) for sa in (-1, 1) for sb in (-1, 1)]
         if k in ('F', 'A'):
-            return [(r+2*dr, c+2*dc) for dr, dc in DIRECTIONS
-                    if inside(r+2*dr, c+2*dc) and (k == 'A' or not self.board[r+dr][c+dc])]
+            for dr, dc in DIRECTIONS:
+                for distance in (1, 2):
+                    nr, nc = r + distance * dr, c + distance * dc
+                    if not inside(nr, nc):
+                        break
+                    out.append((nr, nc))
+                    if k == 'F' and self.board[nr][nc]:
+                        break
+            return out
         if k == 'E':
             jumps = [(2*dr, 2*dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
         if k in ('K', 'T'):
