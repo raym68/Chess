@@ -45,9 +45,8 @@ class Game:
                 self.board[pawn_row][c] = Piece('S' if forest else 'P', color)
 
     def serialize(self):
-        checked_king = next(([r, c] for r in range(8) for c in range(8)
-                             if self.board[r][c] and self.board[r][c].kind in ROYALS
-                             and self.board[r][c].color == self.turn), None) if self.in_check(self.turn) else None
+        royal = self.find_royal(self.turn) if self.in_check(self.turn) else None
+        checked_king = list(royal) if royal else None
         return {'board': board_to_dict(self.board), 'turn': self.turn, 'status': self.status,
                 'checked_king': checked_king,
                 'promotion': self.pending_promotion, 'promotion_options': sorted(self.promotion_options),
@@ -107,14 +106,26 @@ class Game:
                 nr, nc = nr+dr, nc+dc
         return out
 
+    def find_royal(self, color):
+        """Находит позицию королевской фигуры (король/гусеница/бабочка)."""
+        for r in range(8):
+            for c in range(8):
+                p = self.board[r][c]
+                if p and p.color == color and p.kind in ROYALS:
+                    return r, c
+        return None
+
     def attacked(self, square, by_color):
-        return any(self.board[r][c] and self.board[r][c].color == by_color and
-                   square in self.attacks(r, c) for r in range(8) for c in range(8))
+        for r in range(8):
+            for c in range(8):
+                p = self.board[r][c]
+                if p and p.color == by_color and square in self.attacks(r, c):
+                    return True
+        return False
 
     def in_check(self, color):
-        kings = [(r, c) for r in range(8) for c in range(8)
-                 if self.board[r][c] and self.board[r][c].color == color and self.board[r][c].kind in ROYALS]
-        return not kings or self.attacked(kings[0], enemy(color))
+        royal = self.find_royal(color)
+        return not royal or self.attacked(royal, enemy(color))
 
     def candidates(self, r, c):
         p = self.board[r][c]

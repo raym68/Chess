@@ -19,7 +19,7 @@ SETUP_OPTIONS = (
 )
 
 
-@dataclass
+@dataclass(slots=True)
 class Piece:
     kind: str
     color: str
