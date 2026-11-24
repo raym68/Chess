@@ -1,6 +1,7 @@
 """Настольный интерфейс для игры двух человек за одной доской."""
 from math import ceil
 from pathlib import Path
+import sys
 import tkinter as tk
 from tkinter import ttk
 
@@ -15,7 +16,15 @@ NAMES.update(Q='Ферзь', F='Феникс', A='Возрождённый фе�
 SYMBOLS = dict(zip('KQRBNP', '♚♛♜♝♞♟'))
 PIECE_FILES = {'G': 'griffin', 'C': 'camel', 'E': 'elephant',
                'F': 'phoenix', 'A': 'reborn', 'T': 'caterpillar', 'W': 'butterfly', 'S': 'sprout'}
-PIECE_DIR = Path(__file__).resolve().parent / 'assets' / 'pieces'
+# Если проект упакован в один .exe через PyInstaller,
+# картинки извлекаются во временную папку sys._MEIPASS
+def get_asset_dir():
+    if hasattr(sys, '_MEIPASS'):
+        return Path(sys._MEIPASS) / 'assets' / 'pieces'
+    return Path(__file__).resolve().parent / 'assets' / 'pieces'
+
+
+PIECE_DIR = get_asset_dir()
 THEMES = {
     'Магический лес': ('#c4d5ac', '#6d947d'),
     'Дерево': ('#ecd9b6', '#b78963'),
