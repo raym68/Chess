@@ -4,6 +4,7 @@ from copy import deepcopy
 from .models import BACK, OPTIONS, PROMOTION, SETUP_OPTIONS, SETUP_SLOTS, Piece, new_board, board_to_dict
 
 
+SPROUTS = ('S', 'M')
 ROYALS = ('K', 'T', 'W')
 DIRECTIONS = tuple((dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc)
 
@@ -37,7 +38,7 @@ class Game:
                 if forest:
                     kind = {'K': 'T', 'Q': 'F'}.get(kind, kind)
                 self.board[row][c] = Piece(kind, color)
-                self.board[pawn_row][c] = Piece('P', color)
+                self.board[pawn_row][c] = Piece('S' if forest else 'P', color)
 
     def serialize(self):
         checked_king = next(([r, c] for r in range(8) for c in range(8)
@@ -60,6 +61,9 @@ class Game:
             return []
         k, color = p.kind, p.color
         out = []
+        if k in SPROUTS:
+            front = r + (-1 if color == 'white' else 1), c
+            return [front] if inside(*front) else []
         if k == 'P':
             d = -1 if color == 'white' else 1
             return [(r+d, c+dc) for dc in (-1, 1) if inside(r+d, c+dc)]
@@ -110,6 +114,15 @@ class Game:
         if k == 'W':
             return [(r+dr, c+dc) for dr, dc in DIRECTIONS if inside(r+dr, c+dc)
                     and self.board[r+dr][c+dc] and self.board[r+dr][c+dc].color == color]
+        if k in SPROUTS:
+            for nr, nc in self.attacks(r, c):
+                for col in (nc-1, nc+1):
+                    if inside(nr, col) and self.board[nr][col] is None:
+                        moves.append((nr, col))
+                target = self.board[nr][nc]
+                if target and target.color != color and target.kind not in ROYALS:
+                    moves.append((nr, nc))
+            return moves
         if k == 'P':
             d = -1 if color == 'white' else 1
             if inside(r+d, c) and not self.board[r+d][c]:
@@ -156,6 +169,8 @@ class Game:
         if p.kind == 'P' and abs(nr-r) == 2:
             self.en_passant = ((nr+r)//2, c)
 
+        if captured and p.kind in SPROUTS:
+            self.board[r][c] = Piece('M', p.color, moved=True)
         if captured and captured.kind == 'F':
             home = 7 if captured.color == 'white' else 0
             slots = ((row, col) for row in range(8) for col in range(8) if not self.board[row][col])
@@ -242,7 +257,7 @@ class Game:
         promotion_square = start if self.board[end[0]][end[1]].kind == 'W' else end
         pr, pc = promotion_square
         pawn = self.board[pr][pc]
-        if pawn and pawn.kind == 'P' and pr == (0 if pawn.color == 'white' else 7):
+        if pawn and pawn.kind in ('P', *SPROUTS) and pr == (0 if pawn.color == 'white' else 7):
             self.pending_promotion = list(promotion_square)
             self.pending_notation = notation
             self.status = 'Выберите фигуру для превращения'

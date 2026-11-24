@@ -79,7 +79,7 @@ class ChessWindow:
             widget.destroy()
         if self.game.forest:
             rules = (('T', 'после шаха станет бабочкой'), ('W', 'обмен с соседним союзником'),
-                     ('F', 'две клетки; одна новая жизнь'), ('S', 'ходит и берёт как пешка'))
+                     ('F', 'две клетки; одна новая жизнь'), ('S', 'ходит по диагонали, берёт прямо\nПри взятии оставляет мини-росток'))
         else:
             rules = (('G', 'ходит как слон или конь'), ('C', 'прыгает на 3 × 1'),
                      ('E', 'прыгает на две клетки'))
@@ -134,9 +134,9 @@ class ChessWindow:
                         board.create_oval(x+dx*unit, y+dy*unit, x+(dx+5)*unit, y+(dy+3)*unit,
                                           fill=leaf, outline='')
                 kind = piece.kind if piece else None
-                if self.game.forest and kind == 'P':
-                    kind = 'S'
-                if kind in PIECE_FILES:
+                if kind == 'M':
+                    board.create_image(cx, cy, image=self.icon('S', piece.color, max(1, cell * 2 // 3)))
+                elif kind in PIECE_FILES:
                     board.create_image(cx, cy, image=self.icon(kind, piece.color, cell))
                 elif piece:
                     symbol = SYMBOLS[piece.kind]
