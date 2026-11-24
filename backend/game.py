@@ -1,6 +1,4 @@
 """Правила шахмат. Координаты: (строка, столбец), от 0 до 7."""
-from copy import deepcopy
-
 from .models import BACK, SETUP_OPTIONS, SETUP_SLOTS, Piece, new_board, board_to_dict
 
 
@@ -188,13 +186,23 @@ class Game:
             self.board[r][c] = Piece('A', captured.color, moved=True)
             self.events.append('Феникс возродился на ' + self.square_name(start))
 
+    def _clone_for_trial(self):
+        """Быстрое создание копии партии для симуляции хода без тяжелого deepcopy."""
+        trial = Game.__new__(Game)
+        trial.board = [[Piece(p.kind, p.color, p.moved) if p else None for p in row] for row in self.board]
+        trial.turn = self.turn
+        trial.forest = self.forest
+        trial.en_passant = self.en_passant
+        trial.events = []
+        return trial
+
     def legal(self, r, c):
         p = self.board[r][c]
         if not p or p.color != self.turn or self.pending_promotion or self.status.startswith(('Мат', 'Пат')):
             return []
         result = []
         for end in self.candidates(r, c):
-            trial = deepcopy(self)
+            trial = self._clone_for_trial()
             trial.apply((r, c), end)
             if not trial.in_check(self.turn):
                 result.append(end)
