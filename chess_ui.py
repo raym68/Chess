@@ -37,12 +37,12 @@ class ChessWindow:
         self.icon_photo = create_chess_icon()
         root.iconphoto(False, self.icon_photo)
 
-        # Инициализация партии и состояния интерфейса
-        self.game = Game(forest=True)
+        # Инициализация партии и состояния интерфейса (по умолчанию классические шахматы)
+        self.game = Game()
         self.selected = None
         self.moves = []
         self.last_move = None  # Координаты (start, end) для подсветки последнего хода
-        self.theme_name = tk.StringVar(value='Магический лес')
+        self.theme_name = tk.StringVar(value='Дерево')
         self.status = tk.StringVar()
         self.geometry = None
 
@@ -120,40 +120,55 @@ class ChessWindow:
         self.refresh()
 
     def update_legend(self):
-        """Обновляет памятку правил ходов дополнительных фигур в правой панели."""
+        """Обновляет памятку правил ходов и обозначений фигур в правой панели."""
         for widget in self.legend.winfo_children():
             widget.destroy()
 
         self.root.title(NEW if self.game.forest else CLASSIC)
-        if not self.game.forest:
-            return
 
-        ttk.Label(self.legend, text='Правила новых фигур:', style='CardMuted.TLabel', font=FONT_UI_BOLD).pack(anchor='w', pady=(0, 6))
+        if self.game.forest:
+            ttk.Label(self.legend, text='Правила новых фигур:', style='CardMuted.TLabel', font=FONT_UI_BOLD).pack(anchor='w', pady=(0, 6))
 
-        rules = (
-            ('G', 'Грифон', 'слон и конь'),
-            ('C', 'Верблюд', 'прыжок 3 × 1'),
-            ('E', 'Слон', 'прыжок на 2 клетки'),
-            ('F', 'Феникс', '1–2 клетки по прямым и косым'),
-            ('A', 'Возрождённый', 'может перепрыгивать'),
-            ('T', 'Гусеница', 'становится бабочкой при шахе'),
-            ('W', 'Бабочка', 'меняется местами с союзником'),
-            ('S', 'Росток', 'ходит наискось, бьёт прямо'),
-            ('M', 'Мини-росток', 'вырастает после взятия')
-        )
+            rules = (
+                ('G', 'Грифон (G)', 'слон и конь'),
+                ('C', 'Верблюд (C)', 'прыжок 3 × 1'),
+                ('E', 'Слон (E)', 'прыжок на 2 клетки'),
+                ('F', 'Феникс (F)', '1–2 клетки по прямым и косым'),
+                ('A', 'Возрождённый (A)', 'может перепрыгивать'),
+                ('T', 'Гусеница (T)', 'становится бабочкой при шахе'),
+                ('W', 'Бабочка (W)', 'меняется местами с союзником'),
+                ('S', 'Росток (S)', 'ходит наискось, бьёт прямо'),
+                ('M', 'Мини-росток (M)', 'вырастает после взятия')
+            )
 
-        legend_grid = ttk.Frame(self.legend, style='Card.TFrame')
-        legend_grid.pack(fill='x')
+            legend_grid = ttk.Frame(self.legend, style='Card.TFrame')
+            legend_grid.pack(fill='x')
 
-        for row, (kind, name, rule) in enumerate(rules):
-            # Векторная мини-иконка фигуры слева
-            c = tk.Canvas(legend_grid, width=22, height=22, bg=BG_CARD, highlightthickness=0)
-            c.grid(row=row, column=0, padx=(0, 6), pady=1)
-            render_piece(c, kind, 'white', 11, 11, 20)
+            for row, (kind, name, rule) in enumerate(rules):
+                c = tk.Canvas(legend_grid, width=22, height=22, bg=BG_CARD, highlightthickness=0)
+                c.grid(row=row, column=0, padx=(0, 6), pady=1)
+                render_piece(c, kind, 'white', 11, 11, 20)
+                ttk.Label(legend_grid, text=f'{name} — {rule}', style='Card.TLabel', font=('Segoe UI', 8)).grid(row=row, column=1, sticky='w')
+        else:
+            ttk.Label(self.legend, text='Обозначения фигур:', style='CardMuted.TLabel', font=FONT_UI_BOLD).pack(anchor='w', pady=(0, 6))
 
-            # Описание
-            text = f'{name} — {rule}'
-            ttk.Label(legend_grid, text=text, style='Card.TLabel', font=('Segoe UI', 8)).grid(row=row, column=1, sticky='w')
+            classic_pieces = (
+                ('K', 'Король (K)', 'ход на 1 клетку, рокировка'),
+                ('Q', 'Ферзь (Q)', 'по прямым и диагоналям'),
+                ('R', 'Ладья (R)', 'по горизонтали и вертикали'),
+                ('B', 'Слон (B)', 'по диагоналям'),
+                ('N', 'Конь (N)', 'буквой «Г», прыгает через фигуры'),
+                ('P', 'Пешка (P)', 'ход вперёд, взятие наискосок')
+            )
+
+            legend_grid = ttk.Frame(self.legend, style='Card.TFrame')
+            legend_grid.pack(fill='x')
+
+            for row, (kind, name, rule) in enumerate(classic_pieces):
+                c = tk.Canvas(legend_grid, width=22, height=22, bg=BG_CARD, highlightthickness=0)
+                c.grid(row=row, column=0, padx=(0, 6), pady=1)
+                render_piece(c, kind, 'white', 11, 11, 20)
+                ttk.Label(legend_grid, text=f'{name} — {rule}', style='Card.TLabel', font=('Segoe UI', 8)).grid(row=row, column=1, sticky='w')
 
     def draw(self, event=None):
         """Отрисовывает шахматную доску, клетки, координаты, подсказки и фигуры."""
