@@ -4,16 +4,18 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
 
-from backend.game import Game
-from backend.models import BACK, PROMOTION, SETUP_OPTIONS, SETUP_SLOTS
+from backend.game import Game, ROYALS
+from backend.models import BACK, SETUP_OPTIONS, SETUP_SLOTS
 
 FILES = 'abcdefgh'
 NAMES = {item['kind']: item['name'] for item in SETUP_OPTIONS}
-NAMES['Q'] = 'Ферзь'
+NAMES.update(Q='Ферзь', F='Феникс', A='Возрождённый феникс', T='Гусеница', W='Бабочка', S='Росток')
 SYMBOLS = dict(zip('KQRBNP', '♚♛♜♝♞♟'))
-PIECE_FILES = {'G': 'griffin', 'C': 'camel', 'E': 'elephant'}
+PIECE_FILES = {'G': 'griffin', 'C': 'camel', 'E': 'elephant',
+               'F': 'phoenix', 'A': 'reborn', 'T': 'caterpillar', 'W': 'butterfly', 'S': 'sprout'}
 PIECE_DIR = Path(__file__).resolve().parent / 'assets' / 'pieces'
 THEMES = {
+    'Магический лес': ('#c4d5ac', '#6d947d'),
     'Дерево': ('#ecd9b6', '#b78963'),
     'Синий': ('#dfeaf2', '#819eb5'),
     'Зелёный': ('#e3e9d2', '#90a57f'),
@@ -25,10 +27,10 @@ class ChessWindow:
         self.root = root
         root.title('Шахматы')
         root.minsize(690, 510)
-        self.game = Game()
+        self.game = Game(forest=True)
         self.selected = None
         self.moves = []
-        self.theme = tk.StringVar(value='Дерево')
+        self.theme = tk.StringVar(value='Магический лес')
         self.status = tk.StringVar()
         self.geometry = None
         self.icons = {
@@ -52,7 +54,7 @@ class ChessWindow:
         side = ttk.Frame(frame, padding=(16, 0, 0, 0))
         side.grid(row=0, column=1, rowspan=3, sticky='ns')
         ttk.Button(side, text='Новая партия…', command=self.setup).pack(fill='x')
-        ttk.Label(side, text='Цвет доски').pack(anchor='w', pady=(14, 2))
+        ttk.Label(side, text='Оформление доски').pack(anchor='w', pady=(14, 2))
         theme = ttk.Combobox(side, textvariable=self.theme, state='readonly', values=list(THEMES))
         theme.pack(fill='x')
         theme.bind('<<ComboboxSelected>>', self.draw)
@@ -67,15 +69,23 @@ class ChessWindow:
         self.history.configure(yscrollcommand=scroll.set)
         scroll.pack(side='right', fill='y')
         self.history.pack(fill='both', expand=True)
-        legend = ttk.Frame(side)
-        legend.pack(anchor='w', pady=(12, 0))
-        for row, (kind, rule) in enumerate((
-                ('G', 'ходит как слон или конь'),
-                ('C', 'прыгает на 3 × 1'),
-                ('E', 'прыгает на две клетки\nв любом направлении'))):
-            ttk.Label(legend, image=self.icon(kind, 'black', 32)).grid(row=row, column=0)
-            ttk.Label(legend, text=f'{NAMES[kind]}\n{rule}').grid(row=row, column=1, sticky='w')
+        self.legend = ttk.Frame(side)
+        self.legend.pack(anchor='w', pady=(12, 0))
+        self.update_legend()
         self.refresh()
+
+    def update_legend(self):
+        for widget in self.legend.winfo_children():
+            widget.destroy()
+        if self.game.forest:
+            rules = (('T', 'после шаха станет бабочкой'), ('W', 'обмен с соседним союзником'),
+                     ('F', 'две клетки; одна новая жизнь'), ('S', 'ходит и берёт как пешка'))
+        else:
+            rules = (('G', 'ходит как слон или конь'), ('C', 'прыгает на 3 × 1'),
+                     ('E', 'прыгает на две клетки'))
+        for row, (kind, rule) in enumerate(rules):
+            ttk.Label(self.legend, image=self.icon(kind, 'black', 32)).grid(row=row, column=0)
+            ttk.Label(self.legend, text=f'{NAMES[kind]}\n{rule}').grid(row=row, column=1, sticky='w')
 
     def icon(self, kind, color, size):
         original = self.icons[kind, color]
@@ -96,6 +106,8 @@ class ChessWindow:
         left, top = (w - cell * 8) // 2, (h - cell * 8) // 2
         self.geometry = left, top, cell
         colors = THEMES[self.theme.get()]
+        forest_theme = self.theme.get() == 'Магический лес'
+        board.configure(bg='#203e36' if forest_theme else '#263332')
         checked = self.game.in_check(self.game.turn)
         for index in range(8):
             center = (index + 0.5) * cell
@@ -107,14 +119,25 @@ class ChessWindow:
             for c, piece in enumerate(row):
                 x, y = left + c * cell, top + r * cell
                 fill = colors[(r + c) % 2]
-                if checked and piece and piece.kind == 'K' and piece.color == self.game.turn:
+                if checked and piece and piece.kind in ROYALS and piece.color == self.game.turn:
                     fill = '#d67566'
                 if self.selected == (r, c):
                     fill = '#e0bd54'
                 board.create_rectangle(x, y, x + cell, y + cell, fill=fill, outline='')
                 cx, cy = x + cell / 2, y + cell / 2
-                if piece and piece.kind in PIECE_FILES:
-                    board.create_image(cx, cy, image=self.icon(piece.kind, piece.color, cell))
+                if forest_theme:
+                    # Небольшая веточка в углу клетки оставляет центр свободным.
+                    leaf = ('#a8bf98', '#618774')[(r+c) % 2]
+                    unit = cell / 64
+                    board.create_line(x+2*unit, y+13*unit, x+11*unit, y+3*unit, fill=leaf)
+                    for dx, dy in ((4, 6), (8, 2)):
+                        board.create_oval(x+dx*unit, y+dy*unit, x+(dx+5)*unit, y+(dy+3)*unit,
+                                          fill=leaf, outline='')
+                kind = piece.kind if piece else None
+                if self.game.forest and kind == 'P':
+                    kind = 'S'
+                if kind in PIECE_FILES:
+                    board.create_image(cx, cy, image=self.icon(kind, piece.color, cell))
                 elif piece:
                     symbol = SYMBOLS[piece.kind]
                     font = ('Arial', -max(8, int(cell * 0.72)))
@@ -152,6 +175,8 @@ class ChessWindow:
         if not status.startswith(('Мат', 'Пат')):
             turn = 'белых' if self.game.turn == 'white' else 'чёрных'
             status = f'{status} · ход {turn}'
+        if self.game.events:
+            status += '\n' + ' · '.join(self.game.events)
         self.status.set(status)
         self.history.delete(*self.history.get_children())
         moves = self.game.history
@@ -175,8 +200,12 @@ class ChessWindow:
         frame.pack()
         ttk.Label(frame, text='Стартовый ряд для обеих сторон').grid(columnspan=2, pady=(0, 10))
         kinds = [item['kind'] for item in SETUP_OPTIONS]
+        mode = tk.StringVar(value='Лесная' if self.game.forest else 'Обычная')
+        ttk.Label(frame, text='Партия').grid(row=1, column=0)
+        ttk.Combobox(frame, textvariable=mode, values=('Лесная', 'Обычная'),
+                     state='readonly').grid(row=1, column=1)
         choices = {}
-        for row, col in enumerate(SETUP_SLOTS, start=1):
+        for row, col in enumerate(SETUP_SLOTS, start=2):
             ttk.Label(frame, text=FILES[col]).grid(row=row, column=0, padx=(0, 12))
             choice = ttk.Combobox(frame, values=[NAMES[k] for k in kinds], state='readonly')
             choice.current(kinds.index(self.game.back_rank[col]))
@@ -187,14 +216,16 @@ class ChessWindow:
             rank = list(BACK)
             for col, choice in choices.items():
                 rank[col] = kinds[choice.current()]
-            self.game = Game(rank)
+            self.game = Game(rank, forest=mode.get() == 'Лесная')
+            self.update_legend()
             window.destroy()
             self.refresh()
 
-        ttk.Button(frame, text='Начать партию', command=start).grid(row=7, columnspan=2, pady=(10, 0))
+        ttk.Button(frame, text='Начать партию', command=start).grid(row=8, columnspan=2, pady=(10, 0))
 
     def promotion(self):
-        window = self.dialog('Превращение пешки')
+        pawn = 'росток' if self.game.forest else 'пешку'
+        window = self.dialog('Выбор фигуры')
 
         def choose(kind):
             self.game.promote(kind)
@@ -204,8 +235,8 @@ class ChessWindow:
         window.protocol('WM_DELETE_WINDOW', window.bell)
         frame = ttk.Frame(window, padding=14)
         frame.pack()
-        ttk.Label(frame, text='В какую фигуру превратить пешку?').pack(pady=(0, 6))
-        for kind in sorted(PROMOTION, key=lambda k: (k != 'Q', NAMES[k])):
+        ttk.Label(frame, text=f'В какую фигуру превратить {pawn}?').pack(pady=(0, 6))
+        for kind in sorted(self.game.promotion_options, key=lambda k: (k != 'Q', NAMES[k])):
             button = ttk.Button(frame, text=NAMES[kind], command=lambda k=kind: choose(k))
             if kind in PIECE_FILES:
                 button.configure(image=self.icon(kind, self.game.turn, 32), compound='left')

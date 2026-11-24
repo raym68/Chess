@@ -4,6 +4,10 @@ from copy import deepcopy
 from .models import BACK, OPTIONS, PROMOTION, SETUP_OPTIONS, SETUP_SLOTS, Piece, new_board, board_to_dict
 
 
+ROYALS = ('K', 'T', 'W')
+DIRECTIONS = tuple((dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc)
+
+
 def enemy(color):
     return 'black' if color == 'white' else 'white'
 
@@ -13,11 +17,13 @@ def inside(r, c):
 
 
 class Game:
-    def __init__(self, back_rank=BACK):
+    def __init__(self, back_rank=BACK, forest=False):
         if (not isinstance(back_rank, (list, tuple)) or len(back_rank) != 8
                 or back_rank[3] != 'Q' or back_rank[4] != 'K'
                 or any(back_rank[index] not in OPTIONS for index in SETUP_SLOTS)):
             raise ValueError('Выберите фигуры для линий a, b, c, f, g, h; ферзь и король остаются на месте')
+        self.forest = forest
+        self.events = []
         self.back_rank = tuple(back_rank)
         self.board = new_board()
         self.turn = 'white'
@@ -28,19 +34,25 @@ class Game:
         self.pending_notation = None
         for color, row, pawn_row in [('black', 0, 1), ('white', 7, 6)]:
             for c, kind in enumerate(self.back_rank):
+                if forest:
+                    kind = {'K': 'T', 'Q': 'F'}.get(kind, kind)
                 self.board[row][c] = Piece(kind, color)
                 self.board[pawn_row][c] = Piece('P', color)
 
     def serialize(self):
         checked_king = next(([r, c] for r in range(8) for c in range(8)
-                             if self.board[r][c] and self.board[r][c].kind == 'K'
+                             if self.board[r][c] and self.board[r][c].kind in ROYALS
                              and self.board[r][c].color == self.turn), None) if self.in_check(self.turn) else None
         return {'board': board_to_dict(self.board), 'turn': self.turn, 'status': self.status,
                 'checked_king': checked_king,
-                'promotion': self.pending_promotion, 'promotion_options': sorted(PROMOTION),
+                'promotion': self.pending_promotion, 'promotion_options': sorted(self.promotion_options),
                 'setup_options': SETUP_OPTIONS, 'setup_slots': SETUP_SLOTS,
                 'back_rank': list(self.back_rank), 'back_pair': [self.back_rank[2], self.back_rank[5]],
                 'history': self.history}
+
+    @property
+    def promotion_options(self):
+        return (PROMOTION - {'Q'}) | {'F'} if self.forest else PROMOTION
 
     def attacks(self, r, c):
         p = self.board[r][c]
@@ -56,9 +68,12 @@ class Game:
             jumps = [(a*sa, b*sb) for a, b in ((1, 3), (3, 1)) for sa in (-1, 1) for sb in (-1, 1)]
         elif k in ('N', 'G'):
             jumps = [(a*sa, b*sb) for a, b in ((1, 2), (2, 1)) for sa in (-1, 1) for sb in (-1, 1)]
+        if k in ('F', 'A'):
+            return [(r+2*dr, c+2*dc) for dr, dc in DIRECTIONS
+                    if inside(r+2*dr, c+2*dc) and (k == 'A' or not self.board[r+dr][c+dc])]
         if k == 'E':
             jumps = [(2*dr, 2*dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
-        if k == 'K':
+        if k in ('K', 'T'):
             jumps = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
         for dr, dc in jumps:
             if inside(r+dr, c+dc):
@@ -83,7 +98,7 @@ class Game:
 
     def in_check(self, color):
         kings = [(r, c) for r in range(8) for c in range(8)
-                 if self.board[r][c] and self.board[r][c].color == color and self.board[r][c].kind == 'K']
+                 if self.board[r][c] and self.board[r][c].color == color and self.board[r][c].kind in ROYALS]
         return not kings or self.attacked(kings[0], enemy(color))
 
     def candidates(self, r, c):
@@ -92,21 +107,24 @@ class Game:
             return []
         color, k = p.color, p.kind
         moves = []
+        if k == 'W':
+            return [(r+dr, c+dc) for dr, dc in DIRECTIONS if inside(r+dr, c+dc)
+                    and self.board[r+dr][c+dc] and self.board[r+dr][c+dc].color == color]
         if k == 'P':
             d = -1 if color == 'white' else 1
             if inside(r+d, c) and not self.board[r+d][c]:
                 moves.append((r+d, c))
                 start = 6 if color == 'white' else 1
-                if r == start and not self.board[r+2*d][c]:
+                if r == start and not p.moved and not self.board[r+2*d][c]:
                     moves.append((r+2*d, c))
             for nr, nc in self.attacks(r, c):
                 target = self.board[nr][nc]
-                if (target and target.color != color and target.kind != 'K') or (nr, nc) == self.en_passant:
+                if (target and target.color != color and target.kind not in ROYALS) or (nr, nc) == self.en_passant:
                     moves.append((nr, nc))
         else:
             for nr, nc in self.attacks(r, c):
                 target = self.board[nr][nc]
-                if not target or (target.color != color and target.kind != 'K'):
+                if not target or (target.color != color and target.kind not in ROYALS):
                     moves.append((nr, nc))
             if k == 'K' and not p.moved and not self.in_check(color):
                 for rook_c, path, transit, dest in ((7, (5, 6), 5, 6), (0, (1, 2, 3), 3, 2)):
@@ -121,6 +139,11 @@ class Game:
         p = self.board[r][c]
         old_ep = self.en_passant
         self.en_passant = None
+        captured = self.board[nr][nc]
+        if p.kind == 'W':
+            self.board[r][c], self.board[nr][nc] = captured, p
+            captured.moved = p.moved = True
+            return
         if p.kind == 'P' and old_ep == end and c != nc and not self.board[nr][nc]:
             self.board[r][nc] = None
         if p.kind == 'K' and abs(nc-c) == 2:
@@ -132,6 +155,14 @@ class Game:
         p.moved = True
         if p.kind == 'P' and abs(nr-r) == 2:
             self.en_passant = ((nr+r)//2, c)
+
+        if captured and captured.kind == 'F':
+            home = 7 if captured.color == 'white' else 0
+            slots = ((row, col) for row in range(8) for col in range(8) if not self.board[row][col])
+            row, col = min(slots, key=lambda pos: (abs(pos[0]-home) + abs(pos[1]-3),
+                                                   abs(pos[0]-home), pos[1]))
+            self.board[row][col] = Piece('A', captured.color, moved=True)
+            self.events.append('Феникс возродился на ' + self.square_name((row, col)))
 
     def legal(self, r, c):
         p = self.board[r][c]
@@ -147,6 +178,12 @@ class Game:
 
     def finish_turn(self):
         self.turn = enemy(self.turn)
+        if self.forest and self.in_check(self.turn):
+            for row in self.board:
+                for piece in row:
+                    if piece and piece.color == self.turn and piece.kind == 'T':
+                        piece.kind = 'W'
+                        self.events.append('Гусеница стала бабочкой')
         any_moves = any(self.legal(r, c) for r in range(8) for c in range(8))
         if not any_moves:
             self.status = 'Мат — победили ' + ('белые' if self.turn == 'black' else 'чёрные') if self.in_check(self.turn) else 'Пат — ничья'
@@ -163,6 +200,8 @@ class Game:
         nr, nc = end
         piece = self.board[r][c]
         kind = piece.kind
+        if kind == 'W':
+            return 'W' + self.square_name(start) + '↔' + self.square_name(end)
         if kind == 'K' and abs(nc - c) == 2:
             return 'O-O' if nc > c else 'O-O-O'
         capture = self.board[nr][nc] is not None or (kind == 'P' and c != nc)
@@ -197,18 +236,22 @@ class Game:
         if end not in self.legal(r, c):
             raise ValueError('Недопустимый ход')
         notation = self.move_notation(start, end)
+        self.events.clear()
         self.apply(start, end)
-        p = self.board[end[0]][end[1]]
-        if p.kind == 'P' and end[0] in (0, 7):
-            self.pending_promotion = list(end)
+        # При обмене с бабочкой росток может оказаться на последней горизонтали.
+        promotion_square = start if self.board[end[0]][end[1]].kind == 'W' else end
+        pr, pc = promotion_square
+        pawn = self.board[pr][pc]
+        if pawn and pawn.kind == 'P' and pr == (0 if pawn.color == 'white' else 7):
+            self.pending_promotion = list(promotion_square)
             self.pending_notation = notation
-            self.status = 'Выберите фигуру для превращения пешки'
+            self.status = 'Выберите фигуру для превращения'
         else:
             self.finish_turn()
             self.record_move(notation)
 
     def promote(self, kind):
-        if not self.pending_promotion or kind not in PROMOTION:
+        if not self.pending_promotion or kind not in self.promotion_options:
             raise ValueError('Недопустимое превращение')
         r, c = self.pending_promotion
         self.board[r][c] = Piece(kind, self.turn)
