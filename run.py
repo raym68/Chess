@@ -1,4 +1,4 @@
-from backend.server import main
+from chess_ui import main
 
 if __name__ == '__main__':
     main()

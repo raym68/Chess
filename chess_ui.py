@@ -1,0 +1,191 @@
+"""Настольный интерфейс для игры двух человек за одной доской."""
+import tkinter as tk
+from tkinter import ttk
+
+from backend.game import Game
+from backend.models import BACK, PROMOTION, SETUP_OPTIONS, SETUP_SLOTS
+
+FILES = 'abcdefgh'
+NAMES = {item['kind']: item['name'] for item in SETUP_OPTIONS}
+NAMES['Q'] = 'Ферзь'
+SYMBOLS = dict(zip('KQRBNP', '♚♛♜♝♞♟'))
+THEMES = {
+    'Дерево': ('#ecd9b6', '#b78963'),
+    'Синий': ('#dfeaf2', '#819eb5'),
+    'Зелёный': ('#e3e9d2', '#90a57f'),
+}
+
+
+class ChessWindow:
+    def __init__(self, root):
+        self.root = root
+        root.title('Шахматы')
+        root.minsize(690, 510)
+        self.game = Game()
+        self.selected = None
+        self.moves = []
+        self.theme = tk.StringVar(value='Дерево')
+        self.status = tk.StringVar()
+        self.geometry = None
+
+        frame = ttk.Frame(root, padding=12)
+        frame.pack(fill='both', expand=True)
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(1, weight=1)
+        ttk.Label(frame, textvariable=self.status, font=('TkDefaultFont', 15, 'bold')).grid(
+            row=0, column=0, sticky='w', pady=(0, 8))
+        self.board = tk.Canvas(frame, width=510, height=510, highlightthickness=0, bg='#263332')
+        self.board.grid(row=1, column=0, sticky='nsew')
+        self.board.bind('<Configure>', self.draw)
+        self.board.bind('<Button-1>', self.click)
+        ttk.Label(frame, text='Выберите фигуру, затем клетку для хода.').grid(row=2, column=0, sticky='w')
+
+        side = ttk.Frame(frame, padding=(16, 0, 0, 0))
+        side.grid(row=0, column=1, rowspan=3, sticky='ns')
+        ttk.Button(side, text='Новая партия…', command=self.setup).pack(fill='x')
+        ttk.Label(side, text='Цвет доски').pack(anchor='w', pady=(14, 2))
+        theme = ttk.Combobox(side, textvariable=self.theme, state='readonly', values=list(THEMES))
+        theme.pack(fill='x')
+        theme.bind('<<ComboboxSelected>>', self.draw)
+        ttk.Label(side, text='Протокол партии').pack(anchor='w', pady=(18, 4))
+        table = ttk.Frame(side)
+        table.pack(fill='both', expand=True)
+        self.history = ttk.Treeview(table, columns=('№', 'Белые', 'Чёрные'), show='headings', height=8)
+        for name, width in zip(self.history['columns'], (34, 72, 72)):
+            self.history.heading(name, text=name)
+            self.history.column(name, width=width, anchor='center')
+        scroll = ttk.Scrollbar(table, command=self.history.yview)
+        self.history.configure(yscrollcommand=scroll.set)
+        scroll.pack(side='right', fill='y')
+        self.history.pack(fill='both', expand=True)
+        ttk.Label(side, text='G   Грифон — слон или конь\nC   Верблюд — прыжок 3 × 1\n'
+                            'E   Прыгающий слон — на две\n     клетки в любом направлении',
+                  justify='left').pack(anchor='w', pady=(12, 0))
+        self.refresh()
+
+    def draw(self, event=None):
+        board = self.board
+        board.delete('all')
+        w, h = board.winfo_width(), board.winfo_height()
+        cell = (min(w, h) - 40) // 8
+        if cell < 1:
+            self.geometry = None
+            return
+        left, top = (w - cell * 8) // 2, (h - cell * 8) // 2
+        self.geometry = left, top, cell
+        colors = THEMES[self.theme.get()]
+        checked = self.game.in_check(self.game.turn)
+        for index in range(8):
+            center = (index + 0.5) * cell
+            for y in (top - 10, top + 8 * cell + 10):
+                board.create_text(left + center, y, text=FILES[index], fill='white')
+            for x in (left - 10, left + 8 * cell + 10):
+                board.create_text(x, top + center, text=8-index, fill='white')
+        for r, row in enumerate(self.game.board):
+            for c, piece in enumerate(row):
+                x, y = left + c * cell, top + r * cell
+                fill = colors[(r + c) % 2]
+                if checked and piece and piece.kind == 'K' and piece.color == self.game.turn:
+                    fill = '#d67566'
+                if self.selected == (r, c):
+                    fill = '#e0bd54'
+                board.create_rectangle(x, y, x + cell, y + cell, fill=fill, outline='')
+                cx, cy = x + cell / 2, y + cell / 2
+                if piece:
+                    symbol = SYMBOLS.get(piece.kind, piece.kind)
+                    font = ('Arial', -max(8, int(cell * 0.72)))
+                    ink = '#242829' if piece.color == 'black' else '#fffaf0'
+                    if piece.color == 'white':
+                        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                            board.create_text(cx+dx, cy+dy, text=symbol, font=font, fill='#3f4340')
+                    board.create_text(cx, cy, text=symbol, font=font, fill=ink)
+                if (r, c) in self.moves:
+                    radius = cell * (0.43 if piece else 0.11)
+                    board.create_oval(cx-radius, cy-radius, cx+radius, cy+radius,
+                                      fill='' if piece else '#395e53', outline='#395e53', width=2)
+
+    def click(self, event):
+        if not self.geometry or self.game.pending_promotion or self.game.status.startswith(('Мат', 'Пат')):
+            return
+        left, top, cell = self.geometry
+        r, c = (event.y - top) // cell, (event.x - left) // cell
+        if not (0 <= r < 8 and 0 <= c < 8):
+            return
+        if (r, c) in self.moves:
+            self.game.move(self.selected, (r, c))
+            self.refresh()
+            if self.game.pending_promotion:
+                self.promotion()
+            return
+        piece = self.game.board[r][c]
+        self.selected = (r, c) if piece and piece.color == self.game.turn and self.selected != (r, c) else None
+        self.moves = self.game.legal(r, c) if self.selected else []
+        self.draw()
+
+    def refresh(self):
+        self.selected, self.moves = None, []
+        status = self.game.status
+        if not status.startswith(('Мат', 'Пат')):
+            turn = 'белых' if self.game.turn == 'white' else 'чёрных'
+            status = f'{status} · ход {turn}'
+        self.status.set(status)
+        self.history.delete(*self.history.get_children())
+        moves = self.game.history
+        for i in range(0, len(moves), 2):
+            item = self.history.insert('', 'end', values=(i // 2 + 1, *moves[i:i+2]))
+        if moves:
+            self.history.see(item)
+        self.draw()
+
+    def dialog(self, title):
+        window = tk.Toplevel(self.root)
+        window.title(title)
+        window.transient(self.root)
+        window.resizable(False, False)
+        window.grab_set()
+        return window
+
+    def setup(self):
+        window = self.dialog('Новая партия')
+        frame = ttk.Frame(window, padding=16)
+        frame.pack()
+        ttk.Label(frame, text='Стартовый ряд для обеих сторон').grid(columnspan=2, pady=(0, 10))
+        kinds = [item['kind'] for item in SETUP_OPTIONS]
+        choices = {}
+        for row, col in enumerate(SETUP_SLOTS, start=1):
+            ttk.Label(frame, text=FILES[col]).grid(row=row, column=0, padx=(0, 12))
+            choice = ttk.Combobox(frame, values=[NAMES[k] for k in kinds], state='readonly')
+            choice.current(kinds.index(self.game.back_rank[col]))
+            choice.grid(row=row, column=1, pady=2)
+            choices[col] = choice
+
+        def start():
+            rank = list(BACK)
+            for col, choice in choices.items():
+                rank[col] = kinds[choice.current()]
+            self.game = Game(rank)
+            window.destroy()
+            self.refresh()
+
+        ttk.Button(frame, text='Начать партию', command=start).grid(row=7, columnspan=2, pady=(10, 0))
+
+    def promotion(self):
+        window = self.dialog('Превращение пешки')
+
+        def choose(kind):
+            self.game.promote(kind)
+            window.destroy()
+            self.refresh()
+
+        window.protocol('WM_DELETE_WINDOW', window.bell)
+        frame = ttk.Frame(window, padding=14)
+        frame.pack()
+        ttk.Label(frame, text='В какую фигуру превратить пешку?').pack(pady=(0, 6))
+        for kind in sorted(PROMOTION, key=lambda k: (k != 'Q', NAMES[k])):
+            ttk.Button(frame, text=NAMES[kind], command=lambda k=kind: choose(k)).pack(fill='x')
+
+
+def main():
+    root = tk.Tk()
+    ChessWindow(root)
+    root.mainloop()
