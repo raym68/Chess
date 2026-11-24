@@ -39,16 +39,28 @@ class ForestRules(unittest.TestCase):
 
     def test_rebirth_and_second_capture(self):
         g = position(('h1', 'T', 'white'), ('h7', 'T', 'black'),
-                     ('d8', 'F', 'black'), ('d4', 'R', 'white'), ('c1', 'R', 'white'))
-        g.move((4, 3), (0, 3))
-        self.assertEqual(g.board[0][2].kind, 'A')
-        self.assertTrue(g.events)
+                     ('e4', 'F', 'black'), ('b3', 'C', 'white'), ('a6', 'C', 'white'))
+        g.move((5, 1), (4, 4))  # b3 × e4
+        self.assertEqual(g.board[4][4], Piece('C', 'white', moved=True))
+        self.assertEqual(g.board[5][1], Piece('A', 'black', moved=True))
+        self.assertIn('Феникс возродился на b3', g.events)
         g.move((1, 7), (2, 7))
-        g.move((7, 2), (0, 2))
+        g.move((2, 0), (5, 1))
         self.assertFalse(any(p and p.kind == 'A' for row in g.board for p in row))
 
+    def test_sprout_origin_goes_to_reborn_phoenix(self):
+        for kind in ('S', 'M'):
+            for target, result in [('F', 'A'), ('A', 'M')]:
+                with self.subTest(kind=kind, target=target):
+                    g = position(('a1', 'T', 'white'), ('h8', 'T', 'black'),
+                                 ('d5', kind, 'black'), ('d4', target, 'white'), turn='black')
+                    g.move((3, 3), (4, 3))
+                    color = 'white' if result == 'A' else 'black'
+                    self.assertEqual(g.board[3][3], Piece(result, color, moved=True))
+                    self.assertEqual(g.board[4][3], Piece(kind, 'black', moved=True))
+
     def test_rebirth_can_make_capture_illegal(self):
-        g = position(('d6', 'T', 'white'), ('h8', 'T', 'black'),
+        g = position(('c1', 'T', 'white'), ('h8', 'T', 'black'),
                      ('a4', 'F', 'black'), ('a1', 'R', 'white'))
         self.assertNotIn((4, 0), g.legal(7, 0))
         self.assertEqual(g.events, [])

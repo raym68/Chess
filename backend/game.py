@@ -182,15 +182,11 @@ class Game:
         if p.kind == 'P' and abs(nr-r) == 2:
             self.en_passant = ((nr+r)//2, c)
 
-        if captured and p.kind in SPROUTS:
-            self.board[r][c] = Piece('M', p.color, moved=True)
         if captured and captured.kind == 'F':
-            home = 7 if captured.color == 'white' else 0
-            slots = ((row, col) for row in range(8) for col in range(8) if not self.board[row][col])
-            row, col = min(slots, key=lambda pos: (abs(pos[0]-home) + abs(pos[1]-3),
-                                                   abs(pos[0]-home), pos[1]))
-            self.board[row][col] = Piece('A', captured.color, moved=True)
-            self.events.append('Феникс возродился на ' + self.square_name((row, col)))
+            self.board[r][c] = Piece('A', captured.color, moved=True)
+            self.events.append('Феникс возродился на ' + self.square_name(start))
+        elif captured and p.kind in SPROUTS:
+            self.board[r][c] = Piece('M', p.color, moved=True)
 
     def legal(self, r, c):
         p = self.board[r][c]
