@@ -1,9 +1,12 @@
 """Правила шахмат. Координаты: (строка, столбец), от 0 до 7."""
 from copy import deepcopy
 
-from .models import BACK, OPTIONS, PROMOTION, SETUP_OPTIONS, SETUP_SLOTS, Piece, new_board, board_to_dict
+from .models import BACK, SETUP_OPTIONS, SETUP_SLOTS, Piece, new_board, board_to_dict
 
 
+NEW_BACK = tuple('GCEFTECG')
+NEW_SETUP = tuple(item for item in SETUP_OPTIONS if item['kind'] in ('G', 'C', 'E'))
+NEW_KINDS = frozenset(item['kind'] for item in NEW_SETUP)
 SPROUTS = ('S', 'M')
 ROYALS = ('K', 'T', 'W')
 DIRECTIONS = tuple((dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc)
@@ -18,11 +21,16 @@ def inside(r, c):
 
 
 class Game:
-    def __init__(self, back_rank=BACK, forest=False):
-        if (not isinstance(back_rank, (list, tuple)) or len(back_rank) != 8
-                or back_rank[3] != 'Q' or back_rank[4] != 'K'
-                or any(back_rank[index] not in OPTIONS for index in SETUP_SLOTS)):
-            raise ValueError('Выберите фигуры для линий a, b, c, f, g, h; ферзь и король остаются на месте')
+    def __init__(self, back_rank=None, forest=False):
+        if back_rank is None:
+            back_rank = NEW_BACK if forest else BACK
+        if not isinstance(back_rank, (list, tuple)) or len(back_rank) != 8:
+            raise ValueError('В стартовом ряду должно быть восемь фигур')
+        if forest:
+            if tuple(back_rank[3:5]) != ('F', 'T') or any(back_rank[i] not in NEW_KINDS for i in SETUP_SLOTS):
+                raise ValueError('В центре стоят феникс и гусеница, по краям — новые фигуры')
+        elif tuple(back_rank) != BACK:
+            raise ValueError('В классических шахматах используется стандартная расстановка')
         self.forest = forest
         self.events = []
         self.back_rank = tuple(back_rank)
@@ -35,8 +43,6 @@ class Game:
         self.pending_notation = None
         for color, row, pawn_row in [('black', 0, 1), ('white', 7, 6)]:
             for c, kind in enumerate(self.back_rank):
-                if forest:
-                    kind = {'K': 'T', 'Q': 'F'}.get(kind, kind)
                 self.board[row][c] = Piece(kind, color)
                 self.board[pawn_row][c] = Piece('S' if forest else 'P', color)
 
@@ -47,13 +53,13 @@ class Game:
         return {'board': board_to_dict(self.board), 'turn': self.turn, 'status': self.status,
                 'checked_king': checked_king,
                 'promotion': self.pending_promotion, 'promotion_options': sorted(self.promotion_options),
-                'setup_options': SETUP_OPTIONS, 'setup_slots': SETUP_SLOTS,
+                'setup_options': NEW_SETUP if self.forest else (), 'setup_slots': SETUP_SLOTS if self.forest else (),
                 'back_rank': list(self.back_rank), 'back_pair': [self.back_rank[2], self.back_rank[5]],
                 'history': self.history}
 
     @property
     def promotion_options(self):
-        return (PROMOTION - {'Q'}) | {'F'} if self.forest else PROMOTION
+        return NEW_KINDS | {'F'} if self.forest else frozenset('QRBN')
 
     def attacks(self, r, c):
         p = self.board[r][c]

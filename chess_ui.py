@@ -4,9 +4,11 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
 
-from backend.game import Game, ROYALS
-from backend.models import BACK, SETUP_OPTIONS, SETUP_SLOTS
+from backend.game import Game, NEW_BACK, NEW_SETUP, ROYALS
+from backend.models import SETUP_OPTIONS, SETUP_SLOTS
 
+CLASSIC = 'Классические шахматы'
+NEW = 'Новые шахматы'
 FILES = 'abcdefgh'
 NAMES = {item['kind']: item['name'] for item in SETUP_OPTIONS}
 NAMES.update(Q='Ферзь', F='Феникс', A='Возрождённый феникс', T='Гусеница', W='Бабочка', S='Росток')
@@ -77,15 +79,19 @@ class ChessWindow:
     def update_legend(self):
         for widget in self.legend.winfo_children():
             widget.destroy()
-        if self.game.forest:
-            rules = (('T', 'после шаха станет бабочкой'), ('W', 'обмен с соседним союзником'),
-                     ('F', '1–2 клетки, одно возрождение'), ('S', 'ходит по диагонали, берёт прямо\nПри взятии оставляет мини-росток'))
-        else:
-            rules = (('G', 'ходит как слон или конь'), ('C', 'прыгает на 3 × 1'),
-                     ('E', 'прыгает на две клетки'))
+        self.root.title(NEW if self.game.forest else CLASSIC)
+        if not self.game.forest:
+            return
+        rules = (('G', 'слон и конь'), ('C', 'прыжок 3 × 1'), ('E', 'прыжок на две клетки'),
+                 ('F', '1–2 клетки'), ('A', 'может перепрыгивать'), ('T', 'превращается при шахе'),
+                 ('W', 'меняется с союзником'), ('S', 'ходит наискось, бьёт прямо'),
+                 ('M', 'появляется после взятия'))
         for row, (kind, rule) in enumerate(rules):
-            ttk.Label(self.legend, image=self.icon(kind, 'black', 32)).grid(row=row, column=0)
-            ttk.Label(self.legend, text=f'{NAMES[kind]}\n{rule}').grid(row=row, column=1, sticky='w')
+            icon_kind = 'S' if kind == 'M' else kind
+            size = 18 if kind == 'M' else 24
+            ttk.Label(self.legend, image=self.icon(icon_kind, 'black', size)).grid(row=row, column=0)
+            name = 'Мини-росток' if kind == 'M' else NAMES[kind]
+            ttk.Label(self.legend, text=f'{name} — {rule}').grid(row=row, column=1, sticky='w')
 
     def icon(self, kind, color, size):
         original = self.icons[kind, color]
@@ -198,25 +204,38 @@ class ChessWindow:
         window = self.dialog('Новая партия')
         frame = ttk.Frame(window, padding=16)
         frame.pack()
-        ttk.Label(frame, text='Стартовый ряд для обеих сторон').grid(columnspan=2, pady=(0, 10))
-        kinds = [item['kind'] for item in SETUP_OPTIONS]
-        mode = tk.StringVar(value='Лесная' if self.game.forest else 'Обычная')
-        ttk.Label(frame, text='Партия').grid(row=1, column=0)
-        ttk.Combobox(frame, textvariable=mode, values=('Лесная', 'Обычная'),
-                     state='readonly').grid(row=1, column=1)
+        mode = tk.StringVar(value=NEW if self.game.forest else CLASSIC)
+        settings = ttk.LabelFrame(frame, text='Стартовый ряд для обеих сторон', padding=8)
+        settings.grid(row=1, column=0, columnspan=2, sticky='ew', pady=8)
+        kinds = [item['kind'] for item in NEW_SETUP]
+        rank = self.game.back_rank if self.game.forest else NEW_BACK
         choices = {}
-        for row, col in enumerate(SETUP_SLOTS, start=2):
-            ttk.Label(frame, text=FILES[col]).grid(row=row, column=0, padx=(0, 12))
-            choice = ttk.Combobox(frame, values=[NAMES[k] for k in kinds], state='readonly')
-            choice.current(kinds.index(self.game.back_rank[col]))
+
+        def show_settings():
+            if mode.get() == NEW:
+                settings.grid()
+            else:
+                settings.grid_remove()
+
+        for col, title in enumerate((CLASSIC, NEW)):
+            ttk.Radiobutton(frame, text=title, variable=mode, value=title,
+                            command=show_settings).grid(row=0, column=col, padx=4)
+        for row, col in enumerate(SETUP_SLOTS):
+            ttk.Label(settings, text=FILES[col]).grid(row=row, column=0, padx=8)
+            choice = ttk.Combobox(settings, values=[NAMES[k] for k in kinds], state='readonly')
+            choice.current(kinds.index(rank[col]))
             choice.grid(row=row, column=1, pady=2)
             choices[col] = choice
+        show_settings()
 
         def start():
-            rank = list(BACK)
-            for col, choice in choices.items():
-                rank[col] = kinds[choice.current()]
-            self.game = Game(rank, forest=mode.get() == 'Лесная')
+            if mode.get() == NEW:
+                new_rank = list(NEW_BACK)
+                for col, choice in choices.items():
+                    new_rank[col] = kinds[choice.current()]
+                self.game = Game(new_rank, forest=True)
+            else:
+                self.game = Game()
             self.update_legend()
             window.destroy()
             self.refresh()

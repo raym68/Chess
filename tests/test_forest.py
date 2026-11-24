@@ -79,8 +79,19 @@ class ForestRules(unittest.TestCase):
         self.assertEqual(g.board[0][0].kind, 'F')
         self.assertEqual(g.turn, 'black')
 
+    def test_modes_keep_their_own_pieces(self):
+        new = Game(forest=True)
+        classic = Game()
+        self.assertEqual(classic.promotion_options, set('QRBN'))
+        self.assertEqual(new.promotion_options, set('FGCE'))
+        self.assertFalse(classic.serialize()['setup_slots'])
+        with self.assertRaises(ValueError):
+            Game(new.back_rank)
+        with self.assertRaises(ValueError):
+            Game(classic.back_rank, forest=True)
+
     def test_both_starting_positions(self):
-        self.assertEqual([p.kind for p in Game(forest=True).board[7]], list('RNBFTBNR'))
+        self.assertEqual([p.kind for p in Game(forest=True).board[7]], list('GCEFTECG'))
         self.assertEqual([p.kind for p in Game().board[7]], list('RNBQKBNR'))
 
     def test_sprout_quiet_moves_and_attacks_for_both_colors(self):
@@ -103,8 +114,8 @@ class ForestRules(unittest.TestCase):
                          ('c7', kind, 'white'), ('c8', 'N', 'black'))
             g.move((1, 2), (0, 2))
             self.assertEqual(g.board[1][2], Piece('M', 'white', moved=True))
-            g.promote('N')
-            self.assertEqual(g.history, [kind + 'xc8=N'])
+            g.promote('C')
+            self.assertEqual(g.history, [kind + 'xc8=C'])
             self.assertEqual(g.board[1][2].kind, 'M')
 
     def test_diagonal_move_checks_straight_ahead(self):
