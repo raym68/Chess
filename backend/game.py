@@ -182,11 +182,11 @@ class Game:
         if p.kind == 'P' and abs(nr-r) == 2:
             self.en_passant = ((nr+r)//2, c)
 
-        if captured and captured.kind == 'F':
+        if captured and p.kind in SPROUTS:
+            self.board[r][c] = Piece('M', p.color, moved=True)
+        elif captured and captured.kind == 'F':
             self.board[r][c] = Piece('A', captured.color, moved=True)
             self.events.append('Феникс возродился на ' + self.square_name(start))
-        elif captured and p.kind in SPROUTS:
-            self.board[r][c] = Piece('M', p.color, moved=True)
 
     def legal(self, r, c):
         p = self.board[r][c]

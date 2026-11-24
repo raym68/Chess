@@ -48,15 +48,15 @@ class ForestRules(unittest.TestCase):
         g.move((2, 0), (5, 1))
         self.assertFalse(any(p and p.kind == 'A' for row in g.board for p in row))
 
-    def test_sprout_origin_goes_to_reborn_phoenix(self):
+    def test_sprouts_capture_either_phoenix_permanently(self):
         for kind in ('S', 'M'):
-            for target, result in [('F', 'A'), ('A', 'M')]:
+            for target in ('F', 'A'):
                 with self.subTest(kind=kind, target=target):
                     g = position(('a1', 'T', 'white'), ('h8', 'T', 'black'),
                                  ('d5', kind, 'black'), ('d4', target, 'white'), turn='black')
                     g.move((3, 3), (4, 3))
-                    color = 'white' if result == 'A' else 'black'
-                    self.assertEqual(g.board[3][3], Piece(result, color, moved=True))
+                    self.assertFalse(any(p and p.kind in ('F', 'A') for row in g.board for p in row))
+                    self.assertEqual(g.board[3][3], Piece('M', 'black', moved=True))
                     self.assertEqual(g.board[4][3], Piece(kind, 'black', moved=True))
 
     def test_rebirth_can_make_capture_illegal(self):
